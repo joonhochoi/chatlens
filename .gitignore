@@ -1,0 +1,26 @@
+# 빌드 결과물
+build/
+
+# ONNX 모델 파일 (CI에서 자동 다운로드, 로컬에는 별도 배치 필요)
+onnx/
+
+# 프론트엔드 의존성
+frontend/node_modules/
+frontend/dist/
+
+# 사용자 데이터 (실행 시 자동 생성)
+chat_data.db
+settings.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 로그
+*.log
+
+# Claude Code 내부 데이터
+.claude/
+
+# 개발 중 샘플 채팅 데이터
+chat_log/

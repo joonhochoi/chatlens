@@ -1,0 +1,169 @@
+name: Release Build
+
+on:
+  push:
+    tags:
+      - 'v[0-9]*.[0-9]*.[0-9]*'   # v0.0.1, v1.2.3 등
+
+permissions:
+  contents: write   # GitHub Release 생성 및 파일 업로드에 필요
+
+env:
+  ONNXRUNTIME_VERSION: "1.17.0"
+
+jobs:
+  # ───────────────────────────────────────────────
+  # Windows amd64
+  # ───────────────────────────────────────────────
+  build-windows:
+    name: Windows (amd64)
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache-dependency-path: go.sum
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+      # GitHub Actions windows-latest 에는 MSYS2 + MinGW64 이 사전 설치되어 있음
+      - name: Add MinGW to PATH
+        shell: bash
+        run: echo "C:/msys64/mingw64/bin" >> $GITHUB_PATH
+
+      # 모델 파일을 캐싱해 반복 다운로드 방지
+      - name: Cache ONNX files
+        id: onnx-cache
+        uses: actions/cache@v4
+        with:
+          path: onnx
+          key: onnx-windows-ort${{ env.ONNXRUNTIME_VERSION }}-v1
+
+      - name: Download ONNX files
+        if: steps.onnx-cache.outputs.cache-hit != 'true'
+        shell: bash
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}   # optional — public 모델이라 없어도 동작
+        run: |
+          mkdir -p onnx
+
+          echo "▶ tokenizer.json"
+          curl -fL --retry 5 \
+            -H "Authorization: Bearer ${HF_TOKEN}" \
+            -o onnx/tokenizer.json \
+            "https://huggingface.co/intfloat/multilingual-e5-small/resolve/main/tokenizer.json"
+
+          echo "▶ model.onnx (INT8 quantized)"
+          curl -fL --retry 5 \
+            -H "Authorization: Bearer ${HF_TOKEN}" \
+            -o onnx/model.onnx \
+            "https://huggingface.co/Xenova/multilingual-e5-small/resolve/main/onnx/model_quantized.onnx"
+
+          echo "▶ onnxruntime.dll"
+          curl -fL --retry 5 \
+            -o onnxruntime.zip \
+            "https://github.com/microsoft/onnxruntime/releases/download/v${ONNXRUNTIME_VERSION}/onnxruntime-win-x64-${ONNXRUNTIME_VERSION}.zip"
+          # -y: 덮어쓰기, 경로 구조 무시하고 onnx/ 에 직접 추출
+          7z e onnxruntime.zip \
+            "onnxruntime-win-x64-${ONNXRUNTIME_VERSION}/lib/onnxruntime.dll" \
+            -o onnx/ -y
+          rm onnxruntime.zip
+
+      - name: Build
+        shell: bash
+        run: CGO_ENABLED=1 wails build
+
+      - name: Package
+        shell: bash
+        run: |
+          cp -r onnx build/bin/
+          cd build/bin
+          7z a ../../chatlens-windows-amd64.zip .
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: chatlens-windows-amd64.zip
+          fail_on_unmatched_files: true
+
+  # ───────────────────────────────────────────────
+  # macOS Universal (arm64 + amd64)
+  # macos-13 (Intel) 러너 사용 — CGO 유니버셜 빌드 안정성
+  # ───────────────────────────────────────────────
+  build-macos:
+    name: macOS (Universal)
+    runs-on: macos-13
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache-dependency-path: go.sum
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+      - name: Cache ONNX files
+        id: onnx-cache
+        uses: actions/cache@v4
+        with:
+          path: onnx
+          key: onnx-macos-ort${{ env.ONNXRUNTIME_VERSION }}-v1
+
+      - name: Download ONNX files
+        if: steps.onnx-cache.outputs.cache-hit != 'true'
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          mkdir -p onnx
+
+          echo "▶ tokenizer.json"
+          curl -fL --retry 5 \
+            -H "Authorization: Bearer ${HF_TOKEN}" \
+            -o onnx/tokenizer.json \
+            "https://huggingface.co/intfloat/multilingual-e5-small/resolve/main/tokenizer.json"
+
+          echo "▶ model.onnx (INT8 quantized)"
+          curl -fL --retry 5 \
+            -H "Authorization: Bearer ${HF_TOKEN}" \
+            -o onnx/model.onnx \
+            "https://huggingface.co/Xenova/multilingual-e5-small/resolve/main/onnx/model_quantized.onnx"
+
+          echo "▶ libonnxruntime.dylib (universal2)"
+          curl -fL --retry 5 \
+            -o onnxruntime.tgz \
+            "https://github.com/microsoft/onnxruntime/releases/download/v${ONNXRUNTIME_VERSION}/onnxruntime-osx-universal2-${ONNXRUNTIME_VERSION}.tgz"
+          tar xzf onnxruntime.tgz
+          cp "onnxruntime-osx-universal2-${ONNXRUNTIME_VERSION}/lib/libonnxruntime.${ONNXRUNTIME_VERSION}.dylib" \
+             onnx/libonnxruntime.dylib
+          rm -rf onnxruntime.tgz "onnxruntime-osx-universal2-${ONNXRUNTIME_VERSION}"
+
+      - name: Build (Universal)
+        run: CGO_ENABLED=1 wails build -platform darwin/universal
+
+      - name: Package
+        run: |
+          # onnx/ 폴더는 실행파일 옆에 위치해야 함
+          cp -r onnx build/bin/chatlens.app/Contents/MacOS/
+          cd build/bin
+          zip -r ../../chatlens-macos-universal.zip chatlens.app
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: chatlens-macos-universal.zip
+          fail_on_unmatched_files: true
