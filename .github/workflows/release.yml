@@ -71,10 +71,10 @@ jobs:
           curl -fL --retry 5 \
             -o onnxruntime.zip \
             "https://github.com/microsoft/onnxruntime/releases/download/v${ONNXRUNTIME_VERSION}/onnxruntime-win-x64-${ONNXRUNTIME_VERSION}.zip"
-          # -y: 덮어쓰기, 경로 구조 무시하고 onnx/ 에 직접 추출
+          # -oonnx/ : 7z는 -o 와 경로 사이에 공백 없이 붙여야 함
           7z e onnxruntime.zip \
             "onnxruntime-win-x64-${ONNXRUNTIME_VERSION}/lib/onnxruntime.dll" \
-            -o onnx/ -y
+            -oonnx/ -y
           rm onnxruntime.zip
 
       - name: Build
