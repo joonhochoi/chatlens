@@ -39,6 +39,11 @@ jobs:
         shell: bash
         run: echo "C:/msys64/mingw64/bin" >> $GITHUB_PATH
 
+      # sqlite-vec 빌드에 필요한 sqlite3.h 헤더 설치
+      - name: Install SQLite3 dev headers
+        shell: cmd
+        run: C:\msys64\usr\bin\pacman.exe -S --noconfirm mingw-w64-x86_64-sqlite3
+
       # 모델 파일을 캐싱해 반복 다운로드 방지
       - name: Cache ONNX files
         id: onnx-cache
@@ -79,7 +84,10 @@ jobs:
 
       - name: Build
         shell: bash
-        run: CGO_ENABLED=1 wails build
+        env:
+          CGO_ENABLED: "1"
+          CGO_CFLAGS: "-I/c/msys64/mingw64/include"
+        run: wails build
 
       - name: Package
         shell: bash
