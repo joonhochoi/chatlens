@@ -24,7 +24,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.23'
+          go-version: '1.24'
           cache-dependency-path: go.sum
 
       - uses: actions/setup-node@v4
@@ -87,20 +87,29 @@ jobs:
         env:
           CGO_ENABLED: "1"
           CGO_CFLAGS: "-I/c/msys64/mingw64/include"
-        run: wails build
+        run: |
+          TAG="${{ github.ref_name }}"
+          VERSION="${TAG#v}"
+          wails build -ldflags "-X main.AppVersion=${VERSION}"
 
       - name: Package
         shell: bash
         run: |
+          TAG="${{ github.ref_name }}"
+          VERSION="${TAG#v}"
           cp -r onnx build/bin/
           cd build/bin
           7z a ../../chatlens-windows-amd64.zip .
+          # go-selfupdate 용 단독 바이너리 zip (chatlens_{version}_windows_amd64.zip)
+          7z a "../../chatlens_${VERSION}_windows_amd64.zip" chatlens.exe
 
       - name: Upload to Release
         uses: softprops/action-gh-release@v2
         with:
           draft: true
-          files: chatlens-windows-amd64.zip
+          files: |
+            chatlens-windows-amd64.zip
+            chatlens_*_windows_amd64.zip
           fail_on_unmatched_files: true
 
   # ───────────────────────────────────────────────
@@ -116,7 +125,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.23'
+          go-version: '1.24'
           cache-dependency-path: go.sum
 
       - uses: actions/setup-node@v4
@@ -165,18 +174,27 @@ jobs:
         env:
           CGO_ENABLED: "1"
           MACOSX_DEPLOYMENT_TARGET: "10.14"   # sqlite3 일부 함수가 10.14+ 도입 — 경고 제거
-        run: wails build -platform darwin/universal
+        run: |
+          TAG="${{ github.ref_name }}"
+          VERSION="${TAG#v}"
+          wails build -platform darwin/universal -ldflags "-X main.AppVersion=${VERSION}"
 
       - name: Package
         run: |
+          TAG="${{ github.ref_name }}"
+          VERSION="${TAG#v}"
           # onnx/ 폴더는 실행파일 옆에 위치해야 함
           cp -r onnx build/bin/chatlens.app/Contents/MacOS/
           cd build/bin
           zip -r ../../chatlens-macos-universal.zip chatlens.app
+          # go-selfupdate 용 단독 바이너리 zip (chatlens_{version}_darwin_all.zip)
+          zip "../../chatlens_${VERSION}_darwin_all.zip" chatlens.app/Contents/MacOS/chatlens
 
       - name: Upload to Release
         uses: softprops/action-gh-release@v2
         with:
           draft: true
-          files: chatlens-macos-universal.zip
+          files: |
+            chatlens-macos-universal.zip
+            chatlens_*_darwin_all.zip
           fail_on_unmatched_files: true

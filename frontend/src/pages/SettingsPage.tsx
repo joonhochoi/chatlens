@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { GetSettings, SaveSettings, CheckOllama } from '../../wailsjs/go/main/App';
-import { config } from '../../wailsjs/go/models';
+import { GetSettings, SaveSettings, CheckOllama, CheckUpdate, ApplyUpdate } from '../../wailsjs/go/main/App';
+import { config, main } from '../../wailsjs/go/models';
 type Settings = config.Settings;
+type UpdateInfo = main.UpdateInfo;
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<Settings>({
@@ -17,10 +18,13 @@ export default function SettingsPage() {
     useLeaderMicro: false,
     useSemanticChunk: false,
     semanticThreshold: 0.65,
+    autoUpdate: true,
   });
   const [keywordInput, setKeywordInput] = useState('');
   const [ollamaStatus, setOllamaStatus] = useState<'unknown' | 'connected' | 'disconnected'>('unknown');
   const [saveMsg, setSaveMsg] = useState('');
+  const [updateStatus, setUpdateStatus] = useState<'idle' | 'checking' | 'applying'>('idle');
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
 
   useEffect(() => {
     GetSettings().then(s => setSettings(s as Settings));
@@ -38,6 +42,20 @@ export default function SettingsPage() {
     CheckOllama().then(ok => setOllamaStatus(ok ? 'connected' : 'disconnected'));
   }
 
+  function handleCheckUpdate() {
+    setUpdateStatus('checking');
+    setUpdateInfo(null);
+    CheckUpdate().then(info => {
+      setUpdateInfo(info as UpdateInfo);
+      setUpdateStatus('idle');
+    }).catch(() => setUpdateStatus('idle'));
+  }
+
+  function handleApplyUpdate() {
+    setUpdateStatus('applying');
+    ApplyUpdate().catch(() => setUpdateStatus('idle'));
+  }
+
   function addKeyword() {
     const kw = keywordInput.trim();
     if (!kw || settings.ignoreKeywords.includes(kw)) return;
@@ -52,6 +70,44 @@ export default function SettingsPage() {
   return (
     <div className="page">
       <h2>설정</h2>
+
+      <div className="form-group">
+        <label>업데이트</label>
+        <div className="inline-row" style={{ alignItems: 'center', gap: 12 }}>
+          <label className="toggle-label">
+            <input
+              type="checkbox"
+              checked={settings.autoUpdate}
+              onChange={e => setSettings(s => ({ ...s, autoUpdate: e.target.checked }))}
+            />
+            <span>시작 시 자동 업데이트 확인</span>
+          </label>
+          <button
+            className="btn-small"
+            onClick={handleCheckUpdate}
+            disabled={updateStatus !== 'idle'}
+          >
+            {updateStatus === 'checking' ? '확인 중…' : '업데이트 확인'}
+          </button>
+        </div>
+        {updateInfo && !updateInfo.available && (
+          <span className="hint" style={{ color: '#4caf50' }}>최신 버전입니다.</span>
+        )}
+        {updateInfo && updateInfo.available && (
+          <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 13 }}>
+              새 버전 <strong>v{updateInfo.version}</strong> 이 있습니다.
+            </span>
+            <button
+              className="btn-small"
+              onClick={handleApplyUpdate}
+              disabled={updateStatus !== 'idle'}
+            >
+              {updateStatus === 'applying' ? '설치 중…' : '지금 설치'}
+            </button>
+          </div>
+        )}
+      </div>
 
       <div className="form-group">
         <label>리더(타겟 화자) 이름</label>

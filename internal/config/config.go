@@ -21,6 +21,9 @@ type Settings struct {
 	UseLeaderMicro    bool    `json:"useLeaderMicro"`    // 리더 발언 마이크로 청킹
 	UseSemanticChunk  bool    `json:"useSemanticChunk"`  // 의미 기반 추가 분할
 	SemanticThreshold float64 `json:"semanticThreshold"` // 의미 유사도 임계값 (기본 0.65)
+
+	// 업데이트
+	AutoUpdate bool `json:"autoUpdate"` // 시작 시 자동 업데이트 확인
 }
 
 func defaultSettings() Settings {
@@ -37,6 +40,7 @@ func defaultSettings() Settings {
 		UseLeaderMicro:    false,
 		UseSemanticChunk:  false,
 		SemanticThreshold: 0.65,
+		AutoUpdate:        true,
 	}
 }
 

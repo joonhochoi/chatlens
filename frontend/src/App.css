@@ -78,6 +78,19 @@ body {
   color: #f1f5f9;
 }
 
+/* ===== 업데이트 배너 ===== */
+.update-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #1a2e1a;
+  border-bottom: 1px solid #4caf50;
+  padding: 10px 24px;
+  flex-shrink: 0;
+  font-size: 13px;
+}
+.update-banner strong { color: #81c784; }
+
 /* ===== 글로벌 에러 배너 ===== */
 .app-error-banner {
   display: flex;

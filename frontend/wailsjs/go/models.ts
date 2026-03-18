@@ -13,6 +13,7 @@ export namespace config {
 	    useLeaderMicro: boolean;
 	    useSemanticChunk: boolean;
 	    semanticThreshold: number;
+	    autoUpdate: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new Settings(source);
@@ -32,6 +33,7 @@ export namespace config {
 	        this.useLeaderMicro = source["useLeaderMicro"];
 	        this.useSemanticChunk = source["useSemanticChunk"];
 	        this.semanticThreshold = source["semanticThreshold"];
+	        this.autoUpdate = source["autoUpdate"];
 	    }
 	}
 
@@ -160,6 +162,23 @@ export namespace main {
 		    }
 		    return a;
 		}
+	}
+	
+	export class UpdateInfo {
+	    available: boolean;
+	    version: string;
+	    releaseUrl: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new UpdateInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.available = source["available"];
+	        this.version = source["version"];
+	        this.releaseUrl = source["releaseUrl"];
+	    }
 	}
 
 }

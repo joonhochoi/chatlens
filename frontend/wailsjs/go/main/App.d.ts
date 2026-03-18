@@ -3,7 +3,11 @@
 import {main} from '../models';
 import {config} from '../models';
 
+export function ApplyUpdate():Promise<void>;
+
 export function CheckOllama():Promise<boolean>;
+
+export function CheckUpdate():Promise<main.UpdateInfo>;
 
 export function DeleteAllData():Promise<void>;
 

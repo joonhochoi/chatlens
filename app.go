@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -20,8 +21,13 @@ import (
 	"chatlens/internal/parser"
 	"chatlens/internal/search"
 
+	selfupdate "github.com/creativeprojects/go-selfupdate"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
+
+// AppVersion 은 빌드 시 ldflags로 주입됩니다.
+// 예: -ldflags "-X main.AppVersion=0.0.2"
+var AppVersion = "dev"
 
 type App struct {
 	ctx      context.Context
@@ -66,6 +72,13 @@ type KeywordResult struct {
 	HasMore bool         `json:"hasMore"`
 }
 
+// UpdateInfo is the result of an update check.
+type UpdateInfo struct {
+	Available  bool   `json:"available"`
+	Version    string `json:"version"`
+	ReleaseURL string `json:"releaseUrl"`
+}
+
 func NewApp() *App {
 	return &App{}
 }
@@ -100,6 +113,19 @@ func (a *App) startup(ctx context.Context) {
 		return
 	}
 	a.embedder = emb
+
+	// 자동 업데이트 체크 (백그라운드)
+	go func() {
+		settings, err := config.Load()
+		if err != nil || !settings.AutoUpdate || AppVersion == "dev" {
+			return
+		}
+		info, err := checkLatestUpdate()
+		if err != nil || !info.Available {
+			return
+		}
+		runtime.EventsEmit(ctx, "update:available", info)
+	}()
 }
 
 // --- 설정 ---
@@ -488,6 +514,66 @@ func (a *App) SearchKeyword(keyword string, offset int, startDate string, endDat
 		Hits:    hits,
 		Total:   total,
 		HasMore: offset+len(msgs) < total,
+	}, nil
+}
+
+// --- 업데이트 ---
+
+// CheckUpdate 는 GitHub Releases 에서 새 버전을 확인합니다.
+func (a *App) CheckUpdate() (UpdateInfo, error) {
+	return checkLatestUpdate()
+}
+
+// ApplyUpdate 는 새 버전을 다운로드하고 실행 파일을 교체한 뒤 앱을 재시작합니다.
+func (a *App) ApplyUpdate() error {
+	updater, err := selfupdate.NewUpdater(selfupdate.Config{})
+	if err != nil {
+		return fmt.Errorf("업데이터 초기화 오류: %w", err)
+	}
+	latest, found, err := updater.DetectLatest(context.Background(), selfupdate.ParseSlug("joonhochoi/chatlens"))
+	if err != nil {
+		return fmt.Errorf("업데이트 확인 오류: %w", err)
+	}
+	if !found {
+		return fmt.Errorf("업데이트를 찾을 수 없습니다")
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("실행파일 경로 오류: %w", err)
+	}
+	if err := updater.UpdateTo(context.Background(), latest, exe); err != nil {
+		return fmt.Errorf("업데이트 적용 오류: %w", err)
+	}
+
+	// 새 바이너리로 재시작
+	go func() {
+		time.Sleep(500 * time.Millisecond)
+		cmd := exec.Command(exe)
+		cmd.Start() //nolint:errcheck
+		os.Exit(0)
+	}()
+	return nil
+}
+
+func checkLatestUpdate() (UpdateInfo, error) {
+	if AppVersion == "dev" {
+		return UpdateInfo{}, fmt.Errorf("개발 버전에서는 업데이트를 확인할 수 없습니다")
+	}
+	updater, err := selfupdate.NewUpdater(selfupdate.Config{})
+	if err != nil {
+		return UpdateInfo{}, err
+	}
+	latest, found, err := updater.DetectLatest(context.Background(), selfupdate.ParseSlug("joonhochoi/chatlens"))
+	if err != nil {
+		return UpdateInfo{}, err
+	}
+	if !found || !latest.GreaterThan(AppVersion) {
+		return UpdateInfo{Available: false}, nil
+	}
+	return UpdateInfo{
+		Available:  true,
+		Version:    latest.Version(),
+		ReleaseURL: fmt.Sprintf("https://github.com/joonhochoi/chatlens/releases/tag/v%s", latest.Version()),
 	}, nil
 }
 
