@@ -161,7 +161,10 @@ jobs:
           rm -rf onnxruntime.tgz "onnxruntime-osx-universal2-${ONNXRUNTIME_VERSION}"
 
       - name: Build (Universal)
-        run: CGO_ENABLED=1 wails build -platform darwin/universal
+        env:
+          CGO_ENABLED: "1"
+          MACOSX_DEPLOYMENT_TARGET: "10.14"   # sqlite3 일부 함수가 10.14+ 도입 — 경고 제거
+        run: wails build -platform darwin/universal
 
       - name: Package
         run: |
