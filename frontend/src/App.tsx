@@ -73,7 +73,7 @@ export default function App() {
         >
           ⚙️ 설정
         </button>
-        <div className="app-version">v0.0.2</div>
+        <div className="app-version">v0.0.3</div>
       </nav>
 
       <main className="content">
