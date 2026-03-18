@@ -100,7 +100,7 @@ jobs:
   # ───────────────────────────────────────────────
   build-macos:
     name: macOS (Universal)
-    runs-on: macos-13
+    runs-on: macos-latest
 
     steps:
       - uses: actions/checkout@v4
